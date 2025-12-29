@@ -5,7 +5,7 @@ import TodoList from "./components/TodoList.jsx";
 
 export default function App() {
   
-  context.log("🔥 TODOS FUNCTION HIT", req.method);
+  //context.log("🔥 TODOS FUNCTION HIT", req.method);
 
   // Azure-authenticated user
   const [authUser, setAuthUser] = useState(null);
