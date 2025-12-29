@@ -1,78 +1,66 @@
-import { useState } from "react";
-import "./App.css";
+import { useEffect, useState } from "react";
+import Header from "./components/Header.jsx";
+import TodoInput from "./components/TodoInput.jsx";
+import TodoList from "./components/TodoList.jsx";
 
 export default function App() {
+  const [todos, setTodos] = useState([]);
+
+  // Load from localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem("todos");
+    if (saved) setTodos(JSON.parse(saved));
+  }, []);
+
+  // Save to localStorage
+  useEffect(() => {
+    localStorage.setItem("todos", JSON.stringify(todos));
+  }, [todos]);
+
+  const addTodo = (text) => {
+    setTodos([
+      { id: Date.now(), text, completed: false },
+      ...todos,
+    ]);
+  };
+
+  const toggleTodo = (id) => {
+    setTodos(
+      todos.map(t =>
+        t.id === id ? { ...t, completed: !t.completed } : t
+      )
+    );
+  };
+
+  const deleteTodo = (id) => {
+    setTodos(todos.filter(t => t.id !== id));
+  };
+
   return (
-    <div className="min-h-screen bg-black text-white flex items-center justify-center text-3xl font-bold">
-      Tailwind v3 is WORKING ✅
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <Header />
+      <main className="max-w-xl mx-auto p-6">
+        <TodoInput onAdd={addTodo} />
+        <TodoList
+          todos={todos}
+          onToggle={toggleTodo}
+          onDelete={deleteTodo}
+        />
+      </main>
     </div>
   );
 }
 
 
 
-// function App() {
-//   const [tasks, setTasks] = useState([
-//     { id: 1, title: "Learn React basics", done: false },
-//     { id: 2, title: "Build sample UI", done: true },
-//     { id: 3, title: "Deploy to Azure", done: false },
-//   ]);
+// import { useState } from "react";
+// import "./App.css";
 
-//   const toggleTask = (id) => {
-//     setTasks(
-//       tasks.map((task) =>
-//         task.id === id ? { ...task, done: !task.done } : task
-//       )
-//     );
-//   };
-
+// export default function App() {
 //   return (
-//     <div className="app">
-//       <aside className="sidebar">
-//         <h2>React Dashboard</h2>
-//         <nav>
-//           <a>Home</a>
-//           <a>Tasks</a>
-//           <a>Settings</a>
-//         </nav>
-//       </aside>
-
-//       <main className="content">
-//         <header className="header">
-//           <h1>Welcome 👋</h1>
-//           <p>Your local React test UI</p>
-//         </header>
-
-//         <section className="cards">
-//           <div className="card">
-//             <h3>Total Tasks</h3>
-//             <span>{tasks.length}</span>
-//           </div>
-//           <div className="card">
-//             <h3>Completed</h3>
-//             <span>{tasks.filter(t => t.done).length}</span>
-//           </div>
-//           <div className="card">
-//             <h3>Pending</h3>
-//             <span>{tasks.filter(t => !t.done).length}</span>
-//           </div>
-//         </section>
-
-//         <section className="task-list">
-//           <h2>Task List</h2>
-//           {tasks.map((task) => (
-//             <div
-//               key={task.id}
-//               className={`task ${task.done ? "done" : ""}`}
-//               onClick={() => toggleTask(task.id)}
-//             >
-//               {task.title}
-//             </div>
-//           ))}
-//         </section>
-//       </main>
+//     <div className="min-h-screen bg-black text-white flex items-center justify-center text-3xl font-bold">
+//       Tailwind v3 is WORKING ✅
 //     </div>
 //   );
 // }
 
-// export default App
