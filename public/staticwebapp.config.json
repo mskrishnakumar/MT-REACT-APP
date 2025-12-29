@@ -1,8 +1,8 @@
 {
   "routes": [
     {
-      "route": "/.auth/*",
-      "allowedRoles": ["anonymous", "authenticated"]
+      "route": "/*",
+      "allowedRoles": ["anonymous"]
     }
   ],
   "platform": {
