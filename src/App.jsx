@@ -4,18 +4,39 @@ import TodoInput from "./components/TodoInput.jsx";
 import TodoList from "./components/TodoList.jsx";
 
 export default function App() {
+  const [user, setUser] = useState("");
   const [todos, setTodos] = useState([]);
 
-  // Load from localStorage
+  // Ask for username on first load
   useEffect(() => {
-    const saved = localStorage.getItem("todos");
-    if (saved) setTodos(JSON.parse(saved));
+    const savedUser = localStorage.getItem("currentUser");
+    if (savedUser) {
+      setUser(savedUser);
+    } else {
+      const name = prompt("Enter your name:");
+      if (name) {
+        localStorage.setItem("currentUser", name);
+        setUser(name);
+      }
+    }
   }, []);
 
-  // Save to localStorage
+  // Load todos for user
   useEffect(() => {
-    localStorage.setItem("todos", JSON.stringify(todos));
-  }, [todos]);
+    if (!user) return;
+    const savedTodos = localStorage.getItem(`todos_${user}`);
+    if (savedTodos) {
+      setTodos(JSON.parse(savedTodos));
+    } else {
+      setTodos([]);
+    }
+  }, [user]);
+
+  // Save todos for user
+  useEffect(() => {
+    if (!user) return;
+    localStorage.setItem(`todos_${user}`, JSON.stringify(todos));
+  }, [todos, user]);
 
   const addTodo = (text) => {
     setTodos([
@@ -36,9 +57,16 @@ export default function App() {
     setTodos(todos.filter(t => t.id !== id));
   };
 
+  const switchUser = () => {
+    localStorage.removeItem("currentUser");
+    window.location.reload();
+  };
+
+  if (!user) return null;
+
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <Header />
+      <Header user={user} onSwitchUser={switchUser} />
       <main className="max-w-xl mx-auto p-6">
         <TodoInput onAdd={addTodo} />
         <TodoList
@@ -50,17 +78,3 @@ export default function App() {
     </div>
   );
 }
-
-
-
-// import { useState } from "react";
-// import "./App.css";
-
-// export default function App() {
-//   return (
-//     <div className="min-h-screen bg-black text-white flex items-center justify-center text-3xl font-bold">
-//       Tailwind v3 is WORKING ✅
-//     </div>
-//   );
-// }
-
