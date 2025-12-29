@@ -4,9 +4,6 @@ import TodoInput from "./components/TodoInput.jsx";
 import TodoList from "./components/TodoList.jsx";
 
 export default function App() {
-  
-  //context.log("🔥 TODOS FUNCTION HIT", req.method);
-
   // Azure-authenticated user
   const [authUser, setAuthUser] = useState(null);
 
@@ -15,24 +12,40 @@ export default function App() {
 
   const [loading, setLoading] = useState(true);
 
-  // Fetch Azure auth user on app load
+  // -----------------------------
+  // Fetch Azure auth user on load
+  // -----------------------------
   useEffect(() => {
-    fetch("/.auth/me")
-      .then(res => res.json())
+    fetch("/.auth/me", { credentials: "include" })
+      .then(res => res.ok ? res.json() : null)
       .then(data => {
-        setAuthUser(data.clientPrincipal || null);
+        setAuthUser(data?.clientPrincipal || null);
       })
       .catch(() => setAuthUser(null));
   }, []);
 
-  // Fetch todos from Azure after login
+  // ----------------------------------
+  // Fetch todos AFTER user is logged in
+  // ----------------------------------
   useEffect(() => {
     if (!authUser) return;
 
     setLoading(true);
 
-    fetch("/api/todos")
-      .then(res => res.json())
+    fetch("/api/todos", {
+      credentials: "include"
+    })
+      .then(async res => {
+        if (res.status === 401) {
+          // Auth not ready yet – safe fallback
+          return [];
+        }
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(text || "Failed to load todos");
+        }
+        return res.json();
+      })
       .then(data => {
         setTodos(data);
         setLoading(false);
@@ -43,26 +56,29 @@ export default function App() {
       });
   }, [authUser]);
 
-  // ---- Todo actions ----
+  // -----------------------------
+  // Todo actions
+  // -----------------------------
   const addTodo = async (text) => {
     const todo = {
-      id: crypto.randomUUID(),
+      id: Date.now().toString(), // browser-safe ID
       text,
       completed: false,
     };
 
-    try {
-      await fetch("/api/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(todo),
-      });
+    const res = await fetch("/api/todos", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(todo),
+    });
 
-      // optimistic update
-      setTodos(prev => [todo, ...prev]);
-    } catch (err) {
-      console.error("Add todo failed", err);
+    if (!res.ok) {
+      console.error("Add todo failed");
+      return;
     }
+
+    setTodos(prev => [todo, ...prev]);
   };
 
   const toggleTodo = async (id) => {
@@ -71,36 +87,42 @@ export default function App() {
 
     const updated = { ...todo, completed: !todo.completed };
 
-    try {
-      await fetch("/api/todos", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(updated),
-      });
+    const res = await fetch("/api/todos", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updated),
+    });
 
-      setTodos(prev =>
-        prev.map(t => (t.id === id ? updated : t))
-      );
-    } catch (err) {
-      console.error("Toggle todo failed", err);
+    if (!res.ok) {
+      console.error("Toggle todo failed");
+      return;
     }
+
+    setTodos(prev =>
+      prev.map(t => (t.id === id ? updated : t))
+    );
   };
 
   const deleteTodo = async (id) => {
-    try {
-      await fetch("/api/todos", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
+    const res = await fetch("/api/todos", {
+      method: "DELETE",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id }),
+    });
 
-      setTodos(prev => prev.filter(t => t.id !== id));
-    } catch (err) {
-      console.error("Delete todo failed", err);
+    if (!res.ok) {
+      console.error("Delete todo failed");
+      return;
     }
+
+    setTodos(prev => prev.filter(t => t.id !== id));
   };
 
-  // ---- NOT LOGGED IN ----
+  // -----------------------------
+  // NOT LOGGED IN
+  // -----------------------------
   if (!authUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
@@ -114,7 +136,9 @@ export default function App() {
     );
   }
 
-  // ---- LOGGED IN ----
+  // -----------------------------
+  // LOGGED IN
+  // -----------------------------
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
       <Header authUser={authUser} />
