@@ -8,5 +8,11 @@
       "route": "/api/*",
       "allowedRoles": ["authenticated"]
     }
-  ]
+
+    {
+      "platform": {
+      "apiRuntime": "node:18"
+    }
+    }
+]
 }
