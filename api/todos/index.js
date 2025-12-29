@@ -16,13 +16,9 @@ module.exports = async function (context, req) {
       "Todos"
     );
 
-    context.log(
-    "Storage conn exists:",
-    !!process.env.AZURE_STORAGE_CONNECTION_STRING
-  );
-
     const userId = user.userId;
 
+    // GET todos
     if (req.method === "GET") {
       const todos = [];
 
@@ -41,52 +37,31 @@ module.exports = async function (context, req) {
         headers: { "Content-Type": "application/json" },
         body: todos,
       };
-
-    } } else if (req.method === "POST") {
-  try {
-    const todo = req.body;
-
-    context.log("Incoming body:", todo);
-
-    if (!todo || typeof todo !== "object") {
-      context.res = {
-        status: 400,
-        body: "Request body missing or invalid",
-      };
-      return;
     }
 
-    if (!todo.id || !todo.text) {
-      context.res = {
-        status: 400,
-        body: "Todo must have id and text",
-      };
-      return;
+    // POST add/update todo
+    else if (req.method === "POST") {
+      const todo = req.body;
+
+      context.log("Incoming todo:", todo);
+
+      if (!todo || !todo.id || !todo.text) {
+        context.res = { status: 400, body: "Invalid todo payload" };
+        return;
+      }
+
+      await table.upsertEntity({
+        PartitionKey: userId,
+        RowKey: String(todo.id),
+        text: String(todo.text),
+        completed: !!todo.completed,
+      });
+
+      context.res = { status: 200, body: { ok: true } };
     }
 
-    await table.upsertEntity({
-      PartitionKey: userId,
-      RowKey: String(todo.id),
-      text: String(todo.text),
-      completed: !!todo.completed,
-    });
-
-    context.res = {
-      status: 200,
-      body: { ok: true },
-    };
-
-  } catch (err) {
-    context.log("❌ POST failed:", err);
-    context.res = {
-      status: 500,
-      body: "POST failed",
-    };
-  }
-}
-
-
-    } else if (req.method === "DELETE") {
+    // DELETE todo
+    else if (req.method === "DELETE") {
       const { id } = req.body;
 
       if (!id) {
@@ -96,8 +71,10 @@ module.exports = async function (context, req) {
 
       await table.deleteEntity(userId, String(id));
       context.res = { status: 200 };
+    }
 
-    } else {
+    // Unsupported method
+    else {
       context.res = { status: 405 };
     }
 
