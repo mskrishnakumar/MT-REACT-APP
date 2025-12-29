@@ -7,8 +7,10 @@ export default function App() {
   // Azure-authenticated user
   const [authUser, setAuthUser] = useState(null);
 
-  // Todos (will come from API next)
+  // Todos from Azure Table Storage
   const [todos, setTodos] = useState([]);
+
+  const [loading, setLoading] = useState(true);
 
   // Fetch Azure auth user on app load
   useEffect(() => {
@@ -20,40 +22,79 @@ export default function App() {
       .catch(() => setAuthUser(null));
   }, []);
 
- /*  // TEMP: localStorage fallback (remove when API is live)
+  // Fetch todos from Azure after login
   useEffect(() => {
     if (!authUser) return;
-    const saved = localStorage.getItem(`todos_${authUser.userId}`);
-    setTodos(saved ? JSON.parse(saved) : []);
+
+    setLoading(true);
+
+    fetch("/api/todos")
+      .then(res => res.json())
+      .then(data => {
+        setTodos(data);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error("Failed to load todos", err);
+        setLoading(false);
+      });
   }, [authUser]);
 
-  // TEMP: localStorage persistence (remove when API is live)
-  useEffect(() => {
-    if (!authUser) return;
-    localStorage.setItem(
-      `todos_${authUser.userId}`,
-      JSON.stringify(todos)
-    );
-  }, [todos, authUser]); */
-
   // ---- Todo actions ----
-  const addTodo = (text) => {
-    setTodos([
-      { id: Date.now().toString(), text, completed: false },
-      ...todos,
-    ]);
+  const addTodo = async (text) => {
+    const todo = {
+      id: crypto.randomUUID(),
+      text,
+      completed: false,
+    };
+
+    try {
+      await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(todo),
+      });
+
+      // optimistic update
+      setTodos(prev => [todo, ...prev]);
+    } catch (err) {
+      console.error("Add todo failed", err);
+    }
   };
 
-  const toggleTodo = (id) => {
-    setTodos(
-      todos.map(t =>
-        t.id === id ? { ...t, completed: !t.completed } : t
-      )
-    );
+  const toggleTodo = async (id) => {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+
+    const updated = { ...todo, completed: !todo.completed };
+
+    try {
+      await fetch("/api/todos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated),
+      });
+
+      setTodos(prev =>
+        prev.map(t => (t.id === id ? updated : t))
+      );
+    } catch (err) {
+      console.error("Toggle todo failed", err);
+    }
   };
 
-  const deleteTodo = (id) => {
-    setTodos(todos.filter(t => t.id !== id));
+  const deleteTodo = async (id) => {
+    try {
+      await fetch("/api/todos", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+
+      setTodos(prev => prev.filter(t => t.id !== id));
+    } catch (err) {
+      console.error("Delete todo failed", err);
+    }
   };
 
   // ---- NOT LOGGED IN ----
@@ -77,11 +118,18 @@ export default function App() {
 
       <main className="max-w-xl mx-auto p-6">
         <TodoInput onAdd={addTodo} />
-        <TodoList
-          todos={todos}
-          onToggle={toggleTodo}
-          onDelete={deleteTodo}
-        />
+
+        {loading ? (
+          <p className="text-center text-slate-500 mt-6">
+            Loading todos…
+          </p>
+        ) : (
+          <TodoList
+            todos={todos}
+            onToggle={toggleTodo}
+            onDelete={deleteTodo}
+          />
+        )}
       </main>
     </div>
   );
