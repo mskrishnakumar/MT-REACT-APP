@@ -37,6 +37,8 @@ module.exports = async function (context, req) {
   if (req.method === "POST") {
     const todo = req.body;
 
+    context.log("Incoming todo:", req.body);
+
     await table.upsertEntity({
       PartitionKey: userId,
       RowKey: todo.id,

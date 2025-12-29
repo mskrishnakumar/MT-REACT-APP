@@ -20,7 +20,7 @@ export default function App() {
       .catch(() => setAuthUser(null));
   }, []);
 
-  // TEMP: localStorage fallback (remove when API is live)
+ /*  // TEMP: localStorage fallback (remove when API is live)
   useEffect(() => {
     if (!authUser) return;
     const saved = localStorage.getItem(`todos_${authUser.userId}`);
@@ -34,7 +34,7 @@ export default function App() {
       `todos_${authUser.userId}`,
       JSON.stringify(todos)
     );
-  }, [todos, authUser]);
+  }, [todos, authUser]); */
 
   // ---- Todo actions ----
   const addTodo = (text) => {
