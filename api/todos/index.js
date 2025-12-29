@@ -1,3 +1,5 @@
+const crypto = require("crypto");
+globalThis.crypto = crypto;
 const { TableClient } = require("@azure/data-tables");
 
 module.exports = async function (context, req) {
