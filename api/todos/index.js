@@ -16,6 +16,11 @@ module.exports = async function (context, req) {
       "Todos"
     );
 
+    context.log(
+    "Storage conn exists:",
+    !!process.env.AZURE_STORAGE_CONNECTION_STRING
+  );
+
     const userId = user.userId;
 
     if (req.method === "GET") {
@@ -37,24 +42,49 @@ module.exports = async function (context, req) {
         body: todos,
       };
 
-    } else if (req.method === "POST") {
-      const todo = req.body;
+    } } else if (req.method === "POST") {
+  try {
+    const todo = req.body;
 
-      context.log("Incoming todo:", todo);
+    context.log("Incoming body:", todo);
 
-      if (!todo || !todo.id) {
-        context.res = { status: 400, body: "Invalid todo payload" };
-        return;
-      }
+    if (!todo || typeof todo !== "object") {
+      context.res = {
+        status: 400,
+        body: "Request body missing or invalid",
+      };
+      return;
+    }
 
-      await table.upsertEntity({
-        PartitionKey: userId,
-        RowKey: String(todo.id),
-        text: todo.text,
-        completed: !!todo.completed,
-      });
+    if (!todo.id || !todo.text) {
+      context.res = {
+        status: 400,
+        body: "Todo must have id and text",
+      };
+      return;
+    }
 
-      context.res = { status: 200 };
+    await table.upsertEntity({
+      PartitionKey: userId,
+      RowKey: String(todo.id),
+      text: String(todo.text),
+      completed: !!todo.completed,
+    });
+
+    context.res = {
+      status: 200,
+      body: { ok: true },
+    };
+
+  } catch (err) {
+    context.log("❌ POST failed:", err);
+    context.res = {
+      status: 500,
+      body: "POST failed",
+    };
+  }
+}
+
 
     } else if (req.method === "DELETE") {
       const { id } = req.body;
