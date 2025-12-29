@@ -4,43 +4,42 @@ import TodoInput from "./components/TodoInput.jsx";
 import TodoList from "./components/TodoList.jsx";
 
 export default function App() {
-  const [user, setUser] = useState("");
+  // Azure-authenticated user
+  const [authUser, setAuthUser] = useState(null);
+
+  // Todos (will come from API next)
   const [todos, setTodos] = useState([]);
 
-  // Ask for username on first load
+  // Fetch Azure auth user on app load
   useEffect(() => {
-    const savedUser = localStorage.getItem("currentUser");
-    if (savedUser) {
-      setUser(savedUser);
-    } else {
-      const name = prompt("Enter your name:");
-      if (name) {
-        localStorage.setItem("currentUser", name);
-        setUser(name);
-      }
-    }
+    fetch("/.auth/me")
+      .then(res => res.json())
+      .then(data => {
+        setAuthUser(data.clientPrincipal || null);
+      })
+      .catch(() => setAuthUser(null));
   }, []);
 
-  // Load todos for user
+  // TEMP: localStorage fallback (remove when API is live)
   useEffect(() => {
-    if (!user) return;
-    const savedTodos = localStorage.getItem(`todos_${user}`);
-    if (savedTodos) {
-      setTodos(JSON.parse(savedTodos));
-    } else {
-      setTodos([]);
-    }
-  }, [user]);
+    if (!authUser) return;
+    const saved = localStorage.getItem(`todos_${authUser.userId}`);
+    setTodos(saved ? JSON.parse(saved) : []);
+  }, [authUser]);
 
-  // Save todos for user
+  // TEMP: localStorage persistence (remove when API is live)
   useEffect(() => {
-    if (!user) return;
-    localStorage.setItem(`todos_${user}`, JSON.stringify(todos));
-  }, [todos, user]);
+    if (!authUser) return;
+    localStorage.setItem(
+      `todos_${authUser.userId}`,
+      JSON.stringify(todos)
+    );
+  }, [todos, authUser]);
 
+  // ---- Todo actions ----
   const addTodo = (text) => {
     setTodos([
-      { id: Date.now(), text, completed: false },
+      { id: Date.now().toString(), text, completed: false },
       ...todos,
     ]);
   };
@@ -57,16 +56,25 @@ export default function App() {
     setTodos(todos.filter(t => t.id !== id));
   };
 
-  const switchUser = () => {
-    localStorage.removeItem("currentUser");
-    window.location.reload();
-  };
+  // ---- NOT LOGGED IN ----
+  if (!authUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-100">
+        <a
+          href="/.auth/login/github"
+          className="bg-slate-900 text-white px-6 py-3 rounded-lg text-lg hover:bg-slate-800"
+        >
+          Login with GitHub
+        </a>
+      </div>
+    );
+  }
 
-  if (!user) return null;
-
+  // ---- LOGGED IN ----
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <Header user={user} onSwitchUser={switchUser} />
+      <Header authUser={authUser} />
+
       <main className="max-w-xl mx-auto p-6">
         <TodoInput onAdd={addTodo} />
         <TodoList
