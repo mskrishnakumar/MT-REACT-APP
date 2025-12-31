@@ -1,3 +1,7 @@
+const crypto = require("crypto");
+// Polyfill for Azure Functions runtime
+global.crypto = crypto;
+
 const { TableClient } = require("@azure/data-tables");
 
 const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
