@@ -1,19 +1,16 @@
-export default function Header({ authUser }) {
+export default function Header({ email }) {
   return (
-    <header className="bg-slate-900 text-white p-6 flex justify-between items-center">
-      <div>
-        <h1 className="text-2xl font-bold">To-Do List</h1>
-        <p className="text-slate-300 text-sm">
-          {authUser.userDetails} ({authUser.identityProvider})
-        </p>
-      </div>
+    <header className="bg-white shadow-sm">
+      <div className="max-w-xl mx-auto p-4 flex justify-between items-center">
+        <h1 className="text-xl font-semibold">
+          To-Do App
+        </h1>
 
-      <a
-        href="/.auth/logout"
-        className="underline text-slate-300"
-      >
-        Logout
-      </a>
+        <span className="text-sm text-slate-600">
+          Using as: <strong>{email}</strong>
+        </span>
+      </div>
     </header>
   );
 }
+
