@@ -4,45 +4,43 @@ import TodoInput from "./components/TodoInput.jsx";
 import TodoList from "./components/TodoList.jsx";
 
 export default function App() {
-  // Azure-authenticated user
-  const [authUser, setAuthUser] = useState(null);
+  // -----------------------------
+  // Email-based "user identity"
+  // -----------------------------
+  const [email, setEmail] = useState(null);
 
   // Todos from Azure Table Storage
   const [todos, setTodos] = useState([]);
-
   const [loading, setLoading] = useState(true);
 
-  // -----------------------------
-  // Fetch Azure auth user on load
-  // -----------------------------
+  // ----------------------------------
+  // Ask for email ONCE on app load
+  // ----------------------------------
   useEffect(() => {
-    fetch("/.auth/me", { credentials: "include" })
-      .then(res => res.ok ? res.json() : null)
-      .then(data => {
-        setAuthUser(data?.clientPrincipal || null);
-      })
-      .catch(() => setAuthUser(null));
+    let savedEmail = localStorage.getItem("userEmail");
+
+    if (!savedEmail) {
+      savedEmail = prompt("Enter your email to use the To-Do app:");
+      if (savedEmail) {
+        localStorage.setItem("userEmail", savedEmail);
+      }
+    }
+
+    setEmail(savedEmail);
   }, []);
 
   // ----------------------------------
-  // Fetch todos AFTER user is logged in
+  // Fetch todos AFTER email is known
   // ----------------------------------
   useEffect(() => {
-    if (!authUser) return;
+    if (!email) return;
 
     setLoading(true);
 
-    fetch("/api/todos", {
-      credentials: "include"
-    })
-      .then(async res => {
-        if (res.status === 401) {
-          // Auth not ready yet – safe fallback
-          return [];
-        }
+    fetch(`/api/todos?email=${encodeURIComponent(email)}`)
+      .then(res => {
         if (!res.ok) {
-          const text = await res.text();
-          throw new Error(text || "Failed to load todos");
+          throw new Error("Failed to load todos");
         }
         return res.json();
       })
@@ -54,23 +52,23 @@ export default function App() {
         console.error("Failed to load todos", err);
         setLoading(false);
       });
-  }, [authUser]);
+  }, [email]);
 
   // -----------------------------
   // Todo actions
   // -----------------------------
   const addTodo = async (text) => {
     const todo = {
-      id: Date.now().toString(), // browser-safe ID
+      id: Date.now().toString(),
       text,
       completed: false,
+      email
     };
 
     const res = await fetch("/api/todos", {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(todo),
+      body: JSON.stringify(todo)
     });
 
     if (!res.ok) {
@@ -85,13 +83,16 @@ export default function App() {
     const todo = todos.find(t => t.id === id);
     if (!todo) return;
 
-    const updated = { ...todo, completed: !todo.completed };
+    const updated = {
+      ...todo,
+      completed: !todo.completed,
+      email
+    };
 
     const res = await fetch("/api/todos", {
       method: "POST",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updated),
+      body: JSON.stringify(updated)
     });
 
     if (!res.ok) {
@@ -107,9 +108,8 @@ export default function App() {
   const deleteTodo = async (id) => {
     const res = await fetch("/api/todos", {
       method: "DELETE",
-      credentials: "include",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id }),
+      body: JSON.stringify({ id, email })
     });
 
     if (!res.ok) {
@@ -121,27 +121,24 @@ export default function App() {
   };
 
   // -----------------------------
-  // NOT LOGGED IN
+  // Email not provided
   // -----------------------------
-  if (!authUser) {
+  if (!email) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <a
-          href="/.auth/login/github"
-          className="bg-slate-900 text-white px-6 py-3 rounded-lg text-lg hover:bg-slate-800"
-        >
-          Login with GitHub
-        </a>
+        <p className="text-slate-600">
+          Please refresh and enter your email.
+        </p>
       </div>
     );
   }
 
   // -----------------------------
-  // LOGGED IN
+  // Main app
   // -----------------------------
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900">
-      <Header authUser={authUser} />
+      <Header email={email} />
 
       <main className="max-w-xl mx-auto p-6">
         <TodoInput onAdd={addTodo} />
