@@ -2,10 +2,17 @@ const crypto = require("crypto");
 // Polyfill for Azure Functions runtime
 global.crypto = crypto;
 
-const { TableClient } = require("@azure/data-tables");
+const { TableClient, odata } = require("@azure/data-tables");
 
 const connectionString = process.env.AZURE_STORAGE_CONNECTION_STRING;
 const tableName = "todos";
+
+// Email validation regex
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function isValidEmail(email) {
+  return typeof email === "string" && EMAIL_REGEX.test(email.trim());
+}
 
 module.exports = async function (context, req) {
   // -----------------------------
@@ -23,7 +30,15 @@ module.exports = async function (context, req) {
     return;
   }
 
-  const partitionKey = email.toLowerCase();
+  if (!isValidEmail(email)) {
+    context.res = {
+      status: 400,
+      body: "Invalid email format"
+    };
+    return;
+  }
+
+  const partitionKey = email.toLowerCase().trim();
 
   // -----------------------------
   // Table client
@@ -44,7 +59,7 @@ module.exports = async function (context, req) {
 
     const entities = tableClient.listEntities({
       queryOptions: {
-        filter: `PartitionKey eq '${partitionKey}'`
+        filter: odata`PartitionKey eq ${partitionKey}`
       }
     });
 

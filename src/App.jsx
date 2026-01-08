@@ -1,43 +1,66 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Header from "./components/Header.jsx";
 import TodoInput from "./components/TodoInput.jsx";
 import TodoList from "./components/TodoList.jsx";
+import UsernameModal from "./components/UsernameModal.jsx";
+import Toast from "./components/Toast.jsx";
+
+const API_BASE = "/api/todos";
 
 export default function App() {
-  // -----------------------------
-  // Email-based "user identity"
-  // -----------------------------
+  // Email-based user identity
   const [email, setEmail] = useState(null);
+  const [showEmailModal, setShowEmailModal] = useState(false);
 
   // Todos from Azure Table Storage
   const [todos, setTodos] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
 
-  // ----------------------------------
-  // Ask for email ONCE on app load
-  // ----------------------------------
-  useEffect(() => {
-    let savedEmail = localStorage.getItem("userEmail");
+  // Toast notifications
+  const [toast, setToast] = useState(null);
 
-    if (!savedEmail) {
-      savedEmail = prompt("Enter your email to use the To-Do app:");
-      if (savedEmail) {
-        localStorage.setItem("userEmail", savedEmail);
-      }
-    }
-
-    setEmail(savedEmail);
+  const showToast = useCallback((message, type = "error") => {
+    setToast({ message, type });
   }, []);
 
-  // ----------------------------------
-  // Fetch todos AFTER email is known
-  // ----------------------------------
+  const hideToast = useCallback(() => {
+    setToast(null);
+  }, []);
+
+  // Check for saved email on mount
+  useEffect(() => {
+    const savedEmail = localStorage.getItem("userEmail");
+    if (savedEmail) {
+      setEmail(savedEmail);
+    } else {
+      setShowEmailModal(true);
+      setLoading(false);
+    }
+  }, []);
+
+  // Handle email submission from modal
+  const handleEmailSubmit = (submittedEmail) => {
+    localStorage.setItem("userEmail", submittedEmail);
+    setEmail(submittedEmail);
+    setShowEmailModal(false);
+  };
+
+  // Handle logout
+  const handleLogout = () => {
+    localStorage.removeItem("userEmail");
+    setEmail(null);
+    setTodos([]);
+    setShowEmailModal(true);
+  };
+
+  // Fetch todos when email is set
   useEffect(() => {
     if (!email) return;
 
     setLoading(true);
 
-    fetch(`/api/todos?email=${encodeURIComponent(email)}`)
+    fetch(`${API_BASE}?email=${encodeURIComponent(email)}`)
       .then(res => {
         if (!res.ok) {
           throw new Error("Failed to load todos");
@@ -50,13 +73,12 @@ export default function App() {
       })
       .catch(err => {
         console.error("Failed to load todos", err);
+        showToast("Failed to load your tasks. Please try again.");
         setLoading(false);
       });
-  }, [email]);
+  }, [email, showToast]);
 
-  // -----------------------------
-  // Todo actions
-  // -----------------------------
+  // Add todo
   const addTodo = async (text) => {
     const todo = {
       id: Date.now().toString(),
@@ -65,20 +87,30 @@ export default function App() {
       email
     };
 
-    const res = await fetch("/api/todos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(todo)
-    });
+    setActionLoading(true);
 
-    if (!res.ok) {
-      console.error("Add todo failed");
-      return;
+    try {
+      const res = await fetch(API_BASE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(todo)
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to add todo");
+      }
+
+      setTodos(prev => [todo, ...prev]);
+      showToast("Task added successfully!", "success");
+    } catch (err) {
+      console.error("Add todo failed", err);
+      showToast("Failed to add task. Please try again.");
+    } finally {
+      setActionLoading(false);
     }
-
-    setTodos(prev => [todo, ...prev]);
   };
 
+  // Toggle todo completion
   const toggleTodo = async (id) => {
     const todo = todos.find(t => t.id === id);
     if (!todo) return;
@@ -89,72 +121,99 @@ export default function App() {
       email
     };
 
-    const res = await fetch("/api/todos", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(updated)
-    });
+    // Optimistic update
+    setTodos(prev => prev.map(t => (t.id === id ? updated : t)));
 
-    if (!res.ok) {
-      console.error("Toggle todo failed");
-      return;
+    try {
+      const res = await fetch(API_BASE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(updated)
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to update todo");
+      }
+    } catch (err) {
+      console.error("Toggle todo failed", err);
+      // Revert on error
+      setTodos(prev => prev.map(t => (t.id === id ? todo : t)));
+      showToast("Failed to update task. Please try again.");
     }
-
-    setTodos(prev =>
-      prev.map(t => (t.id === id ? updated : t))
-    );
   };
 
+  // Delete todo
   const deleteTodo = async (id) => {
-    const res = await fetch("/api/todos", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, email })
-    });
+    const todoToDelete = todos.find(t => t.id === id);
+    if (!todoToDelete) return;
 
-    if (!res.ok) {
-      console.error("Delete todo failed");
-      return;
-    }
-
+    // Optimistic update
     setTodos(prev => prev.filter(t => t.id !== id));
+
+    try {
+      const res = await fetch(API_BASE, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, email })
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to delete todo");
+      }
+    } catch (err) {
+      console.error("Delete todo failed", err);
+      // Revert on error
+      setTodos(prev => [todoToDelete, ...prev]);
+      showToast("Failed to delete task. Please try again.");
+    }
   };
 
-  // -----------------------------
-  // Email not provided
-  // -----------------------------
-  if (!email) {
+  // Show email modal
+  if (showEmailModal) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-100">
-        <p className="text-slate-600">
-          Please refresh and enter your email.
-        </p>
-      </div>
+      <>
+        <UsernameModal onSubmit={handleEmailSubmit} />
+        {toast && (
+          <Toast
+            message={toast.message}
+            type={toast.type}
+            onClose={hideToast}
+          />
+        )}
+      </>
     );
   }
 
-  // -----------------------------
   // Main app
-  // -----------------------------
   return (
-    <div className="min-h-screen bg-slate-100 text-slate-900">
-      <Header email={email} />
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100">
+      <Header email={email} onLogout={handleLogout} />
 
-      <main className="max-w-xl mx-auto p-6">
-        <TodoInput onAdd={addTodo} />
+      <main className="max-w-2xl mx-auto px-4 py-8">
+        <TodoInput onAdd={addTodo} disabled={actionLoading} />
 
         {loading ? (
-          <p className="text-center text-slate-500 mt-6">
-            Loading todos…
-          </p>
+          <div className="flex flex-col items-center justify-center py-12">
+            <div className="w-10 h-10 border-4 border-teal-200 border-t-teal-500 rounded-full animate-spin mb-4"></div>
+            <p className="text-slate-500">Loading your tasks...</p>
+          </div>
         ) : (
           <TodoList
             todos={todos}
             onToggle={toggleTodo}
             onDelete={deleteTodo}
+            disabled={actionLoading}
           />
         )}
       </main>
+
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={hideToast}
+        />
+      )}
     </div>
   );
 }
